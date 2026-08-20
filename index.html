@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI 入门科普与前沿解读站</title>
+<style>
+  :root{
+    --bg:#eef3fb;
+    --panel:#ffffff;
+    --ink:#0f2540;
+    --ink-soft:#4a6485;
+    --line:#d4e2f4;
+    --accent:#1f6feb;
+    --accent-soft:#e8f1ff;
+    --shadow:0 6px 24px rgba(31,111,235,.10);
+    --radius:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    background:linear-gradient(180deg,#eaf1fc 0%,#eef3fb 40%,#f5f8fd 100%);
+    color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased;padding-bottom:60px;
+  }
+
+  /* ---------- 三站互通顶部导航 ---------- */
+  .sitenav{position:sticky;top:0;z-index:50;background:rgba(15,59,120,.96);
+    backdrop-filter:blur(6px);box-shadow:0 2px 14px rgba(15,59,120,.25)}
+  .sitenav .inner{max-width:1180px;margin:0 auto;padding:0 20px;
+    display:flex;align-items:center;gap:10px;height:52px;flex-wrap:wrap}
+  .sitenav .brand{color:#fff;font-weight:700;font-size:15px;margin-right:6px;white-space:nowrap}
+  .sitenav .links{display:flex;gap:8px;flex-wrap:wrap}
+  .sitenav a{color:#dceaff;text-decoration:none;font-size:13.5px;font-weight:600;
+    padding:7px 14px;border-radius:9px;border:1px solid rgba(255,255,255,.22);
+    background:rgba(255,255,255,.08);transition:all .2s;white-space:nowrap}
+  .sitenav a:hover{background:#fff;color:var(--accent)}
+  .sitenav a.cur{background:#fff;color:var(--accent);border-color:#fff}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+
+  header{
+    background:linear-gradient(120deg,#0f3b78 0%,#1f6feb 60%,#3f8efc 100%);
+    color:#fff;padding:34px 0 28px;position:relative;overflow:hidden;
+    box-shadow:0 10px 30px rgba(15,59,120,.25);
+  }
+  header::after{content:"";position:absolute;right:-80px;top:-80px;width:280px;height:280px;
+    background:radial-gradient(circle,rgba(255,255,255,.18),transparent 70%);border-radius:50%;}
+  .brand-h{display:flex;align-items:center;gap:12px;position:relative;z-index:1}
+  .brand-h .logo{width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.16);
+    display:grid;place-items:center;font-size:22px;border:1px solid rgba(255,255,255,.35);}
+  .brand-h h1{font-size:22px;font-weight:700;letter-spacing:.5px}
+  .brand-h .sub{font-size:13px;opacity:.85;font-weight:400;margin-top:2px}
+  .stats{display:flex;flex-wrap:wrap;gap:14px;margin-top:22px;position:relative;z-index:1}
+  .stat{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);
+    border-radius:12px;padding:12px 18px;min-width:130px;backdrop-filter:blur(4px);}
+  .stat .k{font-size:12px;opacity:.85;letter-spacing:.5px}
+  .stat .v{font-size:20px;font-weight:700;margin-top:2px}
+  .stat .v small{font-size:12px;font-weight:400;opacity:.85}
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;position:relative;z-index:1}
+  .legend .lab{font-size:12px;opacity:.85;align-self:center;margin-right:2px}
+  .legend .chip{font-size:12px;font-weight:600;padding:4px 12px;border-radius:20px;
+    background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);}
+
+  /* 筛选 + 搜索 */
+  .toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;
+    margin:26px 0 8px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px 16px;box-shadow:var(--shadow)}
+  .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .filters .flab{font-size:12px;color:var(--ink-soft);margin-right:2px}
+  .tagbtn{font-size:12.5px;font-weight:600;padding:6px 13px;border-radius:20px;cursor:pointer;
+    border:1px solid var(--line);background:#fff;color:var(--ink-soft);transition:all .2s;user-select:none}
+  .tagbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .tagbtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .searchbox{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);
+    border-radius:10px;padding:7px 12px;min-width:230px}
+  .searchbox input{border:none;outline:none;font-size:13.5px;font-family:inherit;flex:1;color:var(--ink);background:transparent}
+  .searchbox .ic{color:var(--ink-soft);font-size:14px}
+
+  .layout{display:flex;gap:30px;margin-top:22px;align-items:flex-start}
+  .timeline{flex:0 0 210px;position:sticky;top:70px;align-self:flex-start;
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:20px 18px;box-shadow:var(--shadow);}
+  .timeline h2{font-size:13px;color:var(--ink-soft);letter-spacing:1px;margin-bottom:16px;font-weight:600}
+  .rail{position:relative;padding-left:22px}
+  .rail::before{content:"";position:absolute;left:6px;top:6px;bottom:6px;width:2px;background:var(--line)}
+  .node{position:relative;padding:10px 8px;margin:0 -8px;border-radius:8px;cursor:pointer;transition:background .15s ease}
+  .node:hover{background:var(--accent-soft)}
+  .node:hover .d{color:var(--accent)}
+  .node.active{background:var(--accent-soft)}
+  .node.active .d{color:var(--accent)}
+  .node.active .dot{background:#fff;box-shadow:0 0 0 2px var(--accent)}
+  .node .dot{position:absolute;left:-14px;top:14px;width:12px;height:12px;border-radius:50%;
+    background:var(--accent);border:3px solid #fff;box-shadow:0 0 0 2px var(--accent-soft);}
+  .node .d{font-size:14px;font-weight:700;color:var(--ink)}
+  .node .w{font-size:12px;color:var(--ink-soft)}
+  .node .c{font-size:11px;color:var(--accent);font-weight:600;margin-top:1px}
+
+  .content{flex:1;min-width:0}
+  .day-block{margin-bottom:14px}
+  .day-label{display:flex;align-items:baseline;gap:10px;margin:6px 0 14px;padding-left:4px}
+  .day-label .dl-date{font-size:17px;font-weight:700;color:var(--ink)}
+  .day-label .dl-week{font-size:13px;color:var(--ink-soft)}
+  .day-label .dl-count{font-size:12px;color:var(--accent);background:var(--accent-soft);
+    padding:2px 10px;border-radius:20px;font-weight:600}
+
+  .sub-h{display:flex;align-items:center;gap:8px;margin:18px 0 12px;font-size:15px;font-weight:700;color:var(--ink)}
+  .sub-h .bar{width:4px;height:18px;border-radius:3px;background:var(--accent);display:inline-block}
+  .sub-h .cnt{font-size:12px;color:var(--ink-soft);font-weight:500}
+  .module-h{display:flex;align-items:center;gap:12px;font-size:20px;font-weight:800;
+    color:var(--ink);margin:34px 0 18px;padding-bottom:12px;border-bottom:2px solid var(--line)}
+  .module-h .ico{flex:0 0 38px;height:38px;border-radius:11px;background:var(--accent-soft);
+    display:grid;place-items:center;font-size:19px}
+  .module-h .desc{font-size:12.5px;color:var(--ink-soft);font-weight:500;margin-top:2px}
+  .module-h .cnt{margin-left:auto;font-size:12.5px;color:var(--accent);background:var(--accent-soft);
+    padding:4px 12px;border-radius:20px;font-weight:700;white-space:nowrap}
+
+  /* 科普卡 */
+  .scard{background:var(--panel);border:1px solid var(--line);border-left:4px solid #2f9e6e;
+    border-radius:14px;padding:16px 20px;margin-bottom:14px;box-shadow:var(--shadow);
+    opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease;}
+  .scard.visible{opacity:1;transform:none}
+  .scard .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .scard .num{flex:0 0 28px;height:28px;border-radius:9px;background:#e6f7ef;color:#2f9e6e;
+    font-weight:700;display:grid;place-items:center;font-size:13px;}
+  .badge{font-size:12px;font-weight:600;padding:3px 11px;border-radius:20px;border:1px solid;white-space:nowrap}
+  .badge.domain{background:#fff4e6;color:#b45309;border-color:#fcd9a8}
+  .badge.level{background:#eef2ff;color:#4338ca;border-color:#c7d2fe}
+  .scard h3{font-size:16px;font-weight:700;line-height:1.45;margin:4px 0 8px;color:var(--ink)}
+  .scard p{font-size:14px;color:#33485f;line-height:1.75;margin-bottom:10px}
+  .scard .diagram{background:#f6f9ff;border:1px dashed var(--line);border-radius:10px;
+    padding:10px 12px;font-size:13px;color:var(--ink-soft);margin-bottom:10px;white-space:pre-wrap}
+  .scard .foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .scard a.link{font-size:13px;font-weight:600;color:var(--accent);text-decoration:none;
+    border:1px solid var(--accent);padding:6px 14px;border-radius:9px;transition:all .2s;}
+  .scard a.link:hover{background:var(--accent);color:#fff}
+
+  /* 解读卡 */
+  .ncard{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);
+    border-radius:14px;padding:16px 20px;margin-bottom:14px;box-shadow:var(--shadow);
+    opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease;}
+  .ncard.visible{opacity:1;transform:none}
+  .ncard .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .ncard .num{flex:0 0 28px;height:28px;border-radius:9px;background:var(--accent-soft);
+    color:var(--accent);font-weight:700;display:grid;place-items:center;font-size:13px;}
+  .ncard .badge.src{background:hsl(var(--h),72%,94%);color:hsl(var(--h),55%,32%);border-color:hsl(var(--h),55%,84%)}
+  .ncard h3{font-size:16px;font-weight:700;line-height:1.45;margin:4px 0 8px;color:var(--ink)}
+  .ncard .label{font-size:13px;font-weight:700;color:#0f3b78;margin:10px 0 4px;display:flex;align-items:center;gap:6px}
+  .ncard .interpret{font-size:14px;color:#33485f;line-height:1.8}
+  .ncard .foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px}
+  .ncard .src{font-size:12px;color:var(--ink-soft)}
+  .ncard a.link{font-size:13px;font-weight:600;color:#fff;background:#0f3b78;text-decoration:none;
+    border:1px solid #0f3b78;padding:6px 14px;border-radius:9px;transition:all .2s;}
+  .ncard a.link:hover{background:var(--accent);border-color:var(--accent)}
+  .ncard a.link.sub{font-size:12px;padding:5px 11px;opacity:.9}
+
+  .empty{text-align:center;color:var(--ink-soft);padding:40px 0;font-size:14px}
+  footer{text-align:center;color:var(--ink-soft);font-size:12px;margin-top:40px;line-height:1.8}
+  @media(max-width:860px){
+    .layout{flex-direction:column}
+    .timeline{position:static;flex:none;width:100%}
+    .rail{display:flex;gap:6px;overflow-x:auto;padding-left:0;padding-bottom:6px}
+    .rail::before{display:none}
+    .node{padding:6px 4px;margin:0;flex:0 0 auto;text-align:center}
+    .node .dot{display:none}
+    .toolbar{flex-direction:column;align-items:stretch}
+    .searchbox{width:100%}
+  }
+</style>
+</head>
+<body>
+<nav class="sitenav">
+  <div class="inner">
+    <span class="brand">🔬 AI 科普站</span>
+    <div class="links">
+      <a href="https://jan-jianhao-liu.github.io" target="_blank" rel="noopener">个人主页</a>
+      <a href="https://jan-jianhao-liu.github.io/ai-frontier-station/" target="_blank" rel="noopener">前沿科技站</a>
+      <a class="cur" href="https://jan-jianhao-liu.github.io/plain-talk/" target="_blank" rel="noopener">科普解读站</a>
+    </div>
+  </div>
+</nav>
+
+<header>
+  <div class="wrap">
+    <div class="brand-h">
+      <div class="logo">🤖</div>
+      <div>
+        <h1>AI 入门科普与前沿解读站</h1>
+        <div class="sub">每日更新・AI Agent 入门知识库 + 六大 AI 领域热点解读</div>
+        <div class="sub" style="opacity:.75">认知算法 / LLM / AI Agent / 世界模型 / 虚拟仿真社会 / 具身智能</div>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="legend" id="legend"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="toolbar">
+    <div class="filters" id="filters">
+      <span class="flab">领域筛选：</span>
+    </div>
+    <div class="searchbox">
+      <span class="ic">🔍</span>
+      <input id="search" type="text" placeholder="搜索科普 / 解读关键词…" />
+    </div>
+  </div>
+
+  <div class="layout">
+    <aside class="timeline">
+      <h2>时间轴</h2>
+      <div class="rail" id="rail"></div>
+    </aside>
+    <main class="content" id="content"></main>
+  </div>
+  <footer id="footer"></footer>
+</div>
+
+<script>
+const DATA = {"science": [{"id": "sci-2026-08-20-1", "domain": "AI Agent", "title": "【入门科普】什么是 AI Agent？", "level": "入门", "body": "普通大模型像一位「博学但只能动嘴的顾问」——你问它，它答，但不会自己动手。AI Agent（智能体）则像一个「会自己干活的小管家」：你给它一个目标（比如「帮我整理本周会议纪要并发给团队」），它会自己拆步骤、查文件、调工具、发邮件，全程不用你一步步教。核心区别在于「自主性」：大模型是被动问答，Agent 是主动规划加执行。它通常跑在「大模型大脑 + 记忆 + 工具」的组合上，能跨多步完成任务。代表框架有 ReAct（边想边做）、AutoGPT（自主循环）等。一句话记住：Agent = 大模型 + 会规划的脑子 + 能调用工具的手。", "diagram": "", "link": "", "date": "2026-08-20", "weekday": "周四"}, {"id": "sci-2026-08-20-2", "domain": "AI Agent", "title": "【入门科普】Agent 三大核心模块：记忆、规划、工具调用", "level": "入门", "body": "把 Agent 想象成一个「会自动办事的实习生」，它靠三件套工作。① 记忆（Memory）：像笔记本，记住你说过的话和之前的任务结果，避免每次从零开始；分短期（本轮对话）和长期（存进数据库）。② 规划（Planning）：把大目标切成小步骤，比如「写报告」拆成查资料→列提纲→起草→润色，常用思维链（Chain-of-Thought）或 ReAct 框架。③ 工具调用（Tool Use）：它的「手」，能搜网页、跑代码、调 API、发邮件——把文字变成真实动作。三者配合：规划决定做什么，工具去执行，记忆保证连贯。缺了任一，Agent 都会变回「只会聊天的模型」。", "diagram": "目标 →[规划]→ 步骤1 →[工具]→ 结果 →[记忆]→ 步骤2 → … → 完成", "link": "", "date": "2026-08-20", "weekday": "周四"}], "news": [{"id": "news-2026-08-20-1", "domain": "AI Agent", "title": "DeepSeek Harness 开源第 7 天更新多模态，剧透 V4 视觉版", "source": "IT之家", "sourceUrl": "https://www.ithome.com/0/992/120.htm", "interpret": "DeepSeek Harness 开源第 7 天就迎来大版本更新：正式补上多模态支持——DeepSeek 模型适配器可配置原生图片请求，/goal、/plan 等命令支持带图发送，@引用范围扩展到历史会话，官方还剧透 V4 将推出视觉版。通俗讲：这个「一切皆插件」的 Agent 框架刚公测一周，就从「纯文本干活」升级到「看得懂图」，迭代快得惊人。对开发者：多模态 Agent 工作流可以直接上手；对行业：Agent 框架的竞争已经从「能不能跑」卷到「能不能看图、看视频」。", "hue": 210, "date": "2026-08-20", "weekday": "周四"}, {"id": "news-2026-08-20-2", "domain": "具身智能", "title": "北京人形机器人创新中心发布天工 Omni：39kg 轻量级开放底座", "source": "IT之家", "sourceUrl": "https://www.ithome.com/0/992/157.htm", "interpret": "2026 世界机器人大会期间，北京人形机器人创新中心发布轻量化人形机器人「天工 Omni」：身高 1.35 米、整机仅 39 公斤，官方称它是全球首个兼具「感知移动」与「全身通用控制」的 Humanoid Native 开放底座，CEO 表示「入局不算晚」。通俗讲：人形机器人正在从「实验室演示」走向「轻量、开放、可二次开发」的通用平台——39 公斤意味着更安全、更便宜、更容易部署。对行业：硬件底座开放化，是具身智能从炫技走向规模应用的明确信号。", "hue": 214, "date": "2026-08-20", "weekday": "周四"}, {"id": "news-2026-08-20-3", "domain": "LLM", "title": "MiniMax Design 发布：多模态视频模型 H3 变身创作 Agent 工作台", "source": "IT之家", "sourceUrl": "https://www.ithome.com/0/992/095.htm", "interpret": "MiniMax 发布多模态创作 Agent 工作台 MiniMax Design，核心是释放原生多模态视频模型 H3 的生产力：能理解创作需求、拆解任务、调用模型与 Skills，完成从素材处理、内容生成到编辑交付的全流程，还补充了分镜规划和剪辑装配能力。通俗讲：做视频从「人手动剪」变成「Agent 帮你拆活、生成、剪辑」。对创作者：短视频、营销素材的生产门槛进一步下降；对行业：多模态视频模型开始被「Agent 化」包装成生产力工具。", "hue": 209, "date": "2026-08-20", "weekday": "周四"}, {"id": "news-2026-08-20-4", "domain": "AI认知算法", "title": "OpenAI 推出 Private Safety Processing：查滥用、不碰客户数据", "source": "The Decoder", "sourceUrl": "https://the-decoder.com/openai-builds-safety-system-that-catches-misuse-without-storing-customer-data", "interpret": "OpenAI 推出名为 Private Safety Processing 的安全系统，面向企业客户：在不存储客户数据的前提下，通过跨多次关联交互检测滥用模式，采用零数据保留（ZDR），只接收「活动类型+严重程度」这类窄安全信号，不看实际输入输出。通俗讲：企业想用最强 AI，又怕数据被看、被滥用——OpenAI 给出「既能查滥用、又不碰你数据」的方案。对从业者：安全与隐私可以兼得，这可能是大模型企业服务的新标配。", "hue": 227, "date": "2026-08-20", "weekday": "周四"}, {"id": "news-2026-08-20-5", "domain": "AI认知算法", "title": "陶哲轩：AI 可能引发数学自哥德尔以来最大的危机", "source": "The Decoder", "sourceUrl": "https://the-decoder.com/terence-tao-says-ai-could-trigger-maths-biggest-crisis-since-godel", "interpret": "菲尔兹奖得主、数学家陶哲轩在 2026 国际数学家大会警告：AI 可能让数学陷入类似 1900-1930 年基础危机的动荡——真正的冲击不是「数学真理是什么」，而是数学价值观与实践的隐性框架。他提出工作假设：AI 很快能以合理水平完成相当一部分研究级数学任务；依据是 First-Proof Project 第二轮中，10 个未发表研究问题有 7 个获得至少一个 AI 系统的及格评价，单题成本几十到几百美元。通俗讲：连「证明定理」这种人类智力皇冠，AI 也开始够得着。对普通人：数学研究的「手工作坊」可能被 AI 重塑；对研究者：与 AI 协作做研究，将成为新常态。", "hue": 206, "date": "2026-08-20", "weekday": "周四"}], "timeline": [{"date": "2026-08-20", "weekday": "周四", "count": 7}], "domains": ["AI认知算法", "LLM", "AI Agent", "世界模型", "虚拟仿真社会", "具身智能"], "first_date": "2026-08-20", "last_date": "2026-08-20", "days": 1, "science_count": 2, "news_count": 5};
+
+document.getElementById('stats').innerHTML = `
+  <div class="stat"><div class="k">累计科普条目</div><div class="v">${DATA.science_count} <small>条</small></div></div>
+  <div class="stat"><div class="k">累计解读周期</div><div class="v" style="font-size:16px">${DATA.first_date} <small>至</small> ${DATA.last_date}</div></div>
+  <div class="stat"><div class="k">覆盖天数</div><div class="v">${DATA.days} <small>天</small></div></div>
+  <div class="stat"><div class="k">覆盖领域</div><div class="v">${DATA.domains.length} <small>个</small></div></div>
+  <div class="stat"><div class="k">累计解读</div><div class="v">${DATA.news_count} <small>篇</small></div></div>
+`;
+document.getElementById('legend').innerHTML =
+  '<span class="lab">领域：</span>' + DATA.domains.map(d=>`<span class="chip">${d}</span>`).join('');
+
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// 领域筛选按钮
+const filtersEl = document.getElementById('filters');
+let activeDomain = '全部';
+const domainBtns = [{d:'全部'}].concat(DATA.domains.map(d=>({d})));
+domainBtns.forEach(({d})=>{
+  const b = document.createElement('span');
+  b.className = 'tagbtn' + (d==='全部'?' on':'');
+  b.textContent = d;
+  b.onclick = ()=>{ activeDomain = d; document.querySelectorAll('.tagbtn').forEach(x=>x.classList.remove('on')); b.classList.add('on'); render(); };
+  filtersEl.appendChild(b);
+});
+
+const rail = document.getElementById('rail');
+rail.innerHTML = DATA.timeline.map(t=>`
+  <div class="node" data-target="day-${t.date}" title="点击跳转到 ${t.date} 的内容">
+    <span class="dot"></span>
+    <div class="d">${t.date.slice(5)}</div>
+    <div class="w">${t.weekday}</div>
+    <div class="c">${t.count} 条</div>
+  </div>`).join('');
+
+const weekOf = {};
+DATA.timeline.forEach(t=>weekOf[t.date]=t.weekday);
+
+// 按日期聚合
+const sciByDay = {}; DATA.science.forEach(r=>{ (sciByDay[r.date]=sciByDay[r.date]||[]).push(r); });
+const newsByDay = {}; DATA.news.forEach(r=>{ (newsByDay[r.date]=newsByDay[r.date]||[]).push(r); });
+const allDays = Array.from(new Set([...Object.keys(sciByDay), ...Object.keys(newsByDay)]))
+  .sort((a,b)=>b.localeCompare(a));
+
+const searchEl = document.getElementById('search');
+searchEl.addEventListener('input', render);
+
+function matchDomain(r){ return activeDomain==='全部' || r.domain===activeDomain; }
+function matchKw(r, kw){
+  if(!kw) return true;
+  const hay = [r.title, r.domain, r.body||'', r.interpret||'', r.source||''].join(' ').toLowerCase();
+  return hay.includes(kw.toLowerCase());
+}
+
+function sciCard(r, i){
+  const dia = r.diagram ? `<div class="diagram">${esc(r.diagram)}</div>` : '';
+  const ext = r.link ? `<a class="link" href="${esc(r.link)}" target="_blank" rel="noopener">相关论文 →</a>` : '';
+  return `<article class="scard" data-dom="${esc(r.domain)}">
+    <div class="top">
+      <span class="num">${i}</span>
+      <span class="badge domain">${esc(r.domain)}</span>
+      <span class="badge level">${esc(r.level||'入门')}</span>
+    </div>
+    <h3>${esc(r.title)}</h3>
+    <p>${esc(r.body)}</p>
+    ${dia}${ext?`<div class="foot">${ext}</div>`:''}
+  </article>`;
+}
+
+function newsCard(r, i){
+  const srcUrl = r.sourceUrl ? `<a class="link" href="${esc(r.sourceUrl)}" target="_blank" rel="noopener">阅读原文 ↗</a>` : '';
+  return `<article class="ncard" data-dom="${esc(r.domain)}">
+    <div class="top">
+      <span class="num">${i}</span>
+      <span class="badge domain">${esc(r.domain)}</span>
+      <span class="badge src" style="--h:${r.hue}">${esc(r.source||'AI 资讯')}</span>
+    </div>
+    <h3>${esc(r.title)}</h3>
+    <div class="label">💡 通俗解读</div>
+    <div class="interpret">${esc(r.interpret)}</div>
+    <div class="foot">
+      <span class="src">来源：${esc(r.source||'—')}</span>
+      ${srcUrl}
+    </div>
+  </article>`;
+}
+
+const io = new IntersectionObserver((es)=>{
+  es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('visible'); io.unobserve(e.target); } });
+},{threshold:0.1});
+
+function render(){
+  const kw = searchEl.value.trim();
+  const content = document.getElementById('content');
+  const sciDays = Object.keys(sciByDay).sort((a,b)=>b.localeCompare(a));
+  const newsDays = Object.keys(newsByDay).sort((a,b)=>b.localeCompare(a));
+  let sciHtml = '', newsHtml = '', sciN = 0, newsN = 0;
+
+  sciDays.forEach(day=>{
+    const list = (sciByDay[day]||[]).filter(r=>matchDomain(r)&&matchKw(r,kw));
+    if(!list.length) return;
+    sciN += list.length;
+    sciHtml += `<section class="day-block" id="sci-day-${day}">
+      <div class="day-label">
+        <span class="dl-date">${day}</span>
+        <span class="dl-week">${weekOf[day]||''}</span>
+        <span class="dl-count">${list.length} 条</span>
+      </div>${list.map((r,i)=>sciCard(r,i+1)).join('')}</section>`;
+  });
+  newsDays.forEach(day=>{
+    const list = (newsByDay[day]||[]).filter(r=>matchDomain(r)&&matchKw(r,kw));
+    if(!list.length) return;
+    newsN += list.length;
+    newsHtml += `<section class="day-block" id="news-day-${day}">
+      <div class="day-label">
+        <span class="dl-date">${day}</span>
+        <span class="dl-week">${weekOf[day]||''}</span>
+        <span class="dl-count">${list.length} 条</span>
+      </div>${list.map((r,i)=>newsCard(r,i+1)).join('')}</section>`;
+  });
+
+  if(!sciN && !newsN){
+    content.innerHTML = `<div class="empty">没有匹配的条目，换个关键词或领域试试～</div>`;
+    rail.querySelectorAll('.node').forEach(n=>n.classList.remove('active'));
+    return;
+  }
+
+  content.innerHTML =
+    `<div class="module-h"><span class="ico">📘</span><div>AI Agent 入门科普
+       <div class="desc">循序渐进：概念 → 架构 → 工具 → 实战 · 每日 1-2 条</div></div>
+       <span class="cnt">${sciN} 条</span></div>${sciHtml}
+     <div class="module-h"><span class="ico">📰</span><div>每日 5 条新闻 &amp; 解读
+       <div class="desc">精选当日 AI 行业 / 产品热点 · 通俗解读 · 附原文链接</div></div>
+       <span class="cnt">${newsN} 条</span></div>${newsHtml}`;
+
+  document.querySelectorAll('.scard,.ncard').forEach(c=>io.observe(c));
+
+  // 时间轴点击跳转：优先跳科普模块的日期块，否则跳新闻模块
+  rail.querySelectorAll('.node').forEach(n=>{
+    const d = n.dataset.target.replace(/^day-/,'');
+    n.onclick = ()=>{
+      const el = document.getElementById('sci-day-'+d) || document.getElementById('news-day-'+d);
+      if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    };
+  });
+  document.querySelectorAll('.content section').forEach(s=>secObserver.observe(s));
+  rail.querySelectorAll('.node').forEach(n=>n.classList.remove('active'));
+}
+
+const secObserver = new IntersectionObserver((es)=>{
+  es.forEach(e=>{
+    if(e.isIntersecting){
+      const d = (e.target.id||'').replace(/^(sci|news)-day-/, '');
+      document.querySelectorAll('.node').forEach(x=>x.classList.remove('active'));
+      const n = document.querySelector(`.node[data-target="day-${d}"]`);
+      if(n) n.classList.add('active');
+    }
+  });
+},{rootMargin:'-20% 0px -70% 0px', threshold:0});
+
+render();
+
+document.getElementById('footer').innerHTML =
+  `与「AI 前沿科技站」共用六大领域，每日联动更新 · 共 ${DATA.science_count} 条科普 / ${DATA.news_count} 篇解读（${DATA.first_date} 至 ${DATA.last_date}）<br>` +
+  `科普站面向入门学习者与行业爱好者，做轻量化知识科普与大众热点解读；深度论文追踪请前往「前沿科技站」。`;
+</script>
+</body>
+</html>
