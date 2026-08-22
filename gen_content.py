@@ -245,6 +245,10 @@ def main():
     store = load_store()
     science = store.setdefault('science', {})
     news = store.setdefault('news', {})
+    # 自愈：删除历史科普（根治每日入门科普重复），仅保留今日；不影响当天幂等
+    for _d in list(science.keys()):
+        if _d != today:
+            del science[_d]
     if science.get(today) and news.get(today):
         print(f'[{today}] 内容已存在，跳过生成。')
         return
