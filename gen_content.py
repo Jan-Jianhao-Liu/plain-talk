@@ -17,10 +17,40 @@ MODEL = 'qwen3.5:4b'
 SH = timezone(timedelta(hours=8))
 WEEK = ['周一','周二','周三','周四','周五','周六','周日']
 
-SCIENCE_TOPICS = [
+SCIENCE_POOL = [
     "什么是 AI Agent？（区别于普通对话大模型，能自主规划、记忆、调用工具完成长任务）",
     "Agent 三大核心模块：记忆、规划、工具调用",
+    "什么是大模型（LLM）？它怎么\"理解\"语言",
+    "什么是指令（Prompt）？写好提示词的核心技巧",
+    "什么是 RAG（检索增强生成）？让 AI 先查资料再回答",
+    "什么是向量数据库？AI 如何\"记住\"语义相似度",
+    "什么是微调（Fine-tuning）？让通用模型学会专长",
+    "什么是 Embedding？把文字变成可计算的数字向量",
+    "什么是多模态 AI？让模型同时看懂图、听懂话、读文档",
+    "什么是幻觉（Hallucination）？AI 为什么会一本正经胡说",
+    "什么是对齐（Alignment）？让 AI 行为符合人类价值观",
+    "什么是推理模型？AI 的\"慢思考\"与思维链（CoT）",
+    "什么是 MCP（模型上下文协议）？Agent 连接工具的统一标准",
+    "什么是 AI 工作流（Workflow）？把多个步骤串成自动化",
+    "什么是知识图谱？用关系网络组织知识",
+    "什么是强化学习？AI 如何从反馈中自我改进",
+    "什么是 Transformer？现代大模型的底层架构",
+    "如何评测 AI？常用指标与基准测试怎么看",
+    "什么是边缘 AI？把模型跑在手机和摄像头里",
+    "什么是具身智能？给 AI 一个身体去真实行动",
+    "什么是世界模型？AI 在脑中模拟物理世界",
+    "什么是智能体记忆？短期记忆与长期记忆的工程实现",
 ]
+
+def pick_science_topics(today):
+    """按日期确定性轮换 2 个不重复入门主题，避免每天重复、且与历史错开。"""
+    from datetime import date as _date
+    d = datetime.strptime(today, '%Y-%m-%d').date()
+    n = (d - _date(2026, 1, 1)).days
+    L = len(SCIENCE_POOL)
+    a = (n * 2) % L
+    b = (a + 1) % L
+    return [SCIENCE_POOL[a], SCIENCE_POOL[b]]
 
 def now_day():
     return datetime.now(SH).strftime('%Y-%m-%d')
@@ -64,21 +94,22 @@ def parse_json_array(text):
     return []
 
 def gen_science(today):
+    topics = pick_science_topics(today)
     prompt = (
-        "你是面向零基础入门学习者的 AI 科普作者。请严格按顺序生成以下 %d 个「AI Agent 入门科普」条目，"
+        "你是面向零基础入门学习者的 AI 科普作者。请严格按顺序生成以下 %d 个「AI 入门科普」条目，"
         "用简体中文，返回 JSON 数组（不要代码块、不要多余解释），每个元素格式：\n"
         '{"title":"【入门科普】xxx","level":"入门","body":"200-400字，少公式多比喻，用生活化例子讲清概念","diagram":"一句话示意图说明，没有则空字符串"}\n'
-        "条目主题依次为：\n" + "\n".join(f"{i+1}. {t}" for i,t in enumerate(SCIENCE_TOPICS))
+        "条目主题依次为：\n" + "\n".join(f"{i+1}. {t}" for i,t in enumerate(topics))
     )
     msgs = [{'role':'system','content':'你擅长用通俗比喻讲解 AI 概念，杜绝生僻术语。'},
             {'role':'user','content':prompt}]
     out = ollama(msgs)
     arr = parse_json_array(out)
     res = []
-    for i, it in enumerate(arr[:len(SCIENCE_TOPICS)]):
+    for i, it in enumerate(arr[:len(topics)]):
         if not isinstance(it, dict): continue
         res.append({'id': f'sci-{today}-{i+1}', 'domain': 'AI Agent',
-                    'title': it.get('title','') or f'【入门科普】{SCIENCE_TOPICS[i][:12]}',
+                    'title': it.get('title','') or f'【入门科普】{topics[i][:12]}',
                     'level': it.get('level','入门'), 'body': it.get('body',''),
                     'diagram': it.get('diagram',''), 'link': ''})
     return res
