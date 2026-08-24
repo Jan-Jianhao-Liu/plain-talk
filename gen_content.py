@@ -42,15 +42,14 @@ SCIENCE_POOL = [
     "什么是智能体记忆？短期记忆与长期记忆的工程实现",
 ]
 
-def pick_science_topics(today):
-    """按日期确定性轮换 2 个不重复入门主题，避免每天重复、且与历史错开。"""
+def pick_science_topics(today, k=12):
+    """按日期确定性轮换 k 个不重复入门主题，避免每天重复、且与历史错开。"""
     from datetime import date as _date
     d = datetime.strptime(today, '%Y-%m-%d').date()
     n = (d - _date(2026, 1, 1)).days
     L = len(SCIENCE_POOL)
-    a = (n * 2) % L
-    b = (a + 1) % L
-    return [SCIENCE_POOL[a], SCIENCE_POOL[b]]
+    a = (n * 12) % L
+    return [SCIENCE_POOL[(a + i) % L] for i in range(k)]
 
 def now_day():
     return datetime.now(SH).strftime('%Y-%m-%d')
@@ -95,23 +94,29 @@ def parse_json_array(text):
 
 def gen_science(today):
     topics = pick_science_topics(today)
-    prompt = (
-        "你是面向零基础入门学习者的 AI 科普作者。请严格按顺序生成以下 %d 个「AI 入门科普」条目，"
-        "用简体中文，返回 JSON 数组（不要代码块、不要多余解释），每个元素格式：\n"
-        '{"title":"【入门科普】xxx","level":"入门","body":"200-400字，少公式多比喻，用生活化例子讲清概念","diagram":"一句话示意图说明，没有则空字符串"}\n'
-        "条目主题依次为：\n" + "\n".join(f"{i+1}. {t}" for i,t in enumerate(topics))
-    )
-    msgs = [{'role':'system','content':'你擅长用通俗比喻讲解 AI 概念，杜绝生僻术语。'},
-            {'role':'user','content':prompt}]
-    out = ollama(msgs)
-    arr = parse_json_array(out)
+    # 分两批（每批 6 个）生成，避免一次性 12 条 JSON 输出被截断。
     res = []
-    for i, it in enumerate(arr[:len(topics)]):
-        if not isinstance(it, dict): continue
-        res.append({'id': f'sci-{today}-{i+1}', 'domain': 'AI Agent',
-                    'title': it.get('title','') or f'【入门科普】{topics[i][:12]}',
-                    'level': it.get('level','入门'), 'body': it.get('body',''),
-                    'diagram': it.get('diagram',''), 'link': ''})
+    batch = 6
+    for s in range(0, len(topics), batch):
+        chunk = topics[s:s + batch]
+        prompt = (
+            "你是面向零基础入门学习者的 AI 科普作者。请严格按顺序生成以下 %d 个「AI 入门科普」条目，"
+            "用简体中文，返回 JSON 数组（不要代码块、不要多余解释），每个元素格式：\n"
+            '{"title":"【入门科普】xxx","level":"入门","body":"200-400字，少公式多比喻，用生活化例子讲清概念","diagram":"一句话示意图说明，没有则空字符串"}\n'
+            "条目主题依次为：\n" + "\n".join(f"{i+1}. {t}" for i, t in enumerate(chunk))
+        )
+        msgs = [{'role': 'system', 'content': '你擅长用通俗比喻讲解 AI 概念，杜绝生僻术语。'},
+                {'role': 'user', 'content': prompt}]
+        out = ollama(msgs)
+        arr = parse_json_array(out)
+        for i, it in enumerate(arr[:len(chunk)]):
+            if not isinstance(it, dict):
+                continue
+            idx = s + i
+            res.append({'id': f'sci-{today}-{idx+1}', 'domain': 'AI Agent',
+                        'title': it.get('title', '') or f'【入门科普】{chunk[i][:12]}',
+                        'level': it.get('level', '入门'), 'body': it.get('body', ''),
+                        'diagram': it.get('diagram', ''), 'link': ''})
     return res
 
 # 大众新闻素材：AI HOT 资讯池（非论文），按关键词启发式打领域
