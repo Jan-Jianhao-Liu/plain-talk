@@ -42,13 +42,13 @@ SCIENCE_POOL = [
     "什么是智能体记忆？短期记忆与长期记忆的工程实现",
 ]
 
-def pick_science_topics(today, k=12):
+def pick_science_topics(today, k=2):
     """按日期确定性轮换 k 个不重复入门主题，避免每天重复、且与历史错开。"""
     from datetime import date as _date
     d = datetime.strptime(today, '%Y-%m-%d').date()
     n = (d - _date(2026, 1, 1)).days
     L = len(SCIENCE_POOL)
-    a = (n * 12) % L
+    a = (n * 2) % L
     return [SCIENCE_POOL[(a + i) % L] for i in range(k)]
 
 def now_day():
@@ -94,29 +94,24 @@ def parse_json_array(text):
 
 def gen_science(today):
     topics = pick_science_topics(today)
-    # 分两批（每批 6 个）生成，避免一次性 12 条 JSON 输出被截断。
+    prompt = (
+        "你是面向零基础入门学习者的 AI 科普作者。请严格按顺序生成以下 %d 个「AI 入门科普」条目，"
+        "用简体中文，返回 JSON 数组（不要代码块、不要多余解释），每个元素格式：\n"
+        '{"title":"【入门科普】xxx","level":"入门","body":"200-400字，少公式多比喻，用生活化例子讲清概念","diagram":"一句话示意图说明，没有则空字符串"}\n'
+        "条目主题依次为：\n" + "\n".join(f"{i+1}. {t}" for i, t in enumerate(topics))
+    )
+    msgs = [{'role': 'system', 'content': '你擅长用通俗比喻讲解 AI 概念，杜绝生僻术语。'},
+            {'role': 'user', 'content': prompt}]
+    out = ollama(msgs)
+    arr = parse_json_array(out)
     res = []
-    batch = 6
-    for s in range(0, len(topics), batch):
-        chunk = topics[s:s + batch]
-        prompt = (
-            "你是面向零基础入门学习者的 AI 科普作者。请严格按顺序生成以下 %d 个「AI 入门科普」条目，"
-            "用简体中文，返回 JSON 数组（不要代码块、不要多余解释），每个元素格式：\n"
-            '{"title":"【入门科普】xxx","level":"入门","body":"200-400字，少公式多比喻，用生活化例子讲清概念","diagram":"一句话示意图说明，没有则空字符串"}\n'
-            "条目主题依次为：\n" + "\n".join(f"{i+1}. {t}" for i, t in enumerate(chunk))
-        )
-        msgs = [{'role': 'system', 'content': '你擅长用通俗比喻讲解 AI 概念，杜绝生僻术语。'},
-                {'role': 'user', 'content': prompt}]
-        out = ollama(msgs)
-        arr = parse_json_array(out)
-        for i, it in enumerate(arr[:len(chunk)]):
-            if not isinstance(it, dict):
-                continue
-            idx = s + i
-            res.append({'id': f'sci-{today}-{idx+1}', 'domain': 'AI Agent',
-                        'title': it.get('title', '') or f'【入门科普】{chunk[i][:12]}',
-                        'level': it.get('level', '入门'), 'body': it.get('body', ''),
-                        'diagram': it.get('diagram', ''), 'link': ''})
+    for i, it in enumerate(arr[:len(topics)]):
+        if not isinstance(it, dict):
+            continue
+        res.append({'id': f'sci-{today}-{i+1}', 'domain': 'AI Agent',
+                    'title': it.get('title', '') or f'【入门科普】{topics[i][:12]}',
+                    'level': it.get('level', '入门'), 'body': it.get('body', ''),
+                    'diagram': it.get('diagram', ''), 'link': ''})
     return res
 
 # 大众新闻素材：AI HOT 资讯池（非论文），按关键词启发式打领域
@@ -250,12 +245,23 @@ def main():
     store = load_store()
     science = store.setdefault('science', {})
     news = store.setdefault('news', {})
-    # 自愈：删除历史科普（根治每日入门科普重复），仅保留今日；不影响当天幂等
+    # 保留历史用于板块累积展示：科普近 30 天、新闻近 7 天（不再清空历史）。
+    # 仓库导入桶（如 "repo-import"，非日期键）永久保留，不被日期裁剪误删。
+    cut_sci = (datetime.strptime(today, '%Y-%m-%d') - timedelta(days=30)).strftime('%Y-%m-%d')
+    cut_news = (datetime.strptime(today, '%Y-%m-%d') - timedelta(days=7)).strftime('%Y-%m-%d')
+    _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
     for _d in list(science.keys()):
-        if _d != today:
+        if not _DATE_RE.match(str(_d)):
+            continue  # 非日期桶（仓库导入）永久保留
+        if _d < cut_sci:
             del science[_d]
-    if science.get(today) and news.get(today):
-        print(f'[{today}] 内容已存在，跳过生成。')
+    for _d in list(news.keys()):
+        if not _DATE_RE.match(str(_d)):
+            continue
+        if _d < cut_news:
+            del news[_d]
+    if science.get(today):
+        print(f'[{today}] 今日科普已存在，跳过生成。')
         return
     print(f'[{today}] 生成科普站内容（Ollama {MODEL}）...')
     # 预热
