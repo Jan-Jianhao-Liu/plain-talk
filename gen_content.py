@@ -82,14 +82,57 @@ def strip_fence(text):
     if m: return m.group(1).strip()
     return text.strip()
 
+def _repair_inner_quotes(s):
+    """修复模型在中文串值里混用 ASCII 双引号导致的 JSON 截断。
+    例：'"…“最烦人的 CAPTCHA"，目的是…"' —— 收尾的直角引号并非真正的串结束符。
+    判据：字符串内的 '"' 若后面紧跟的非空白字符不是 , : } ] 之一，则视为内部引号，替换为 ”。"""
+    out = []; in_str = False; esc = False
+    for i, ch in enumerate(s):
+        if esc:
+            out.append(ch); esc = False; continue
+        if ch == '\\':
+            out.append(ch); esc = True; continue
+        if ch == '"':
+            if not in_str:
+                in_str = True; out.append(ch); continue
+            j = i + 1
+            while j < len(s) and s[j] in ' \t\r\n':
+                j += 1
+            if j >= len(s) or s[j] in ',:}]':
+                in_str = False; out.append(ch)
+            else:
+                out.append('\u201d')
+            continue
+        out.append(ch)
+    return ''.join(out)
+
+def _salvage_objects(text, keys=('title', 'interpret')):
+    """最后兜底：按「下一个键名/右花括号」为锚点抽取字段，容忍串内脏引号。"""
+    k1, k2 = keys
+    pat = re.compile(
+        r'"%s"\s*:\s*"(?P<a>.*?)"\s*,\s*"%s"\s*:\s*"(?P<b>.*?)"\s*\n?\s*[}\]]' % (k1, k2),
+        re.S)
+    return [{k1: m.group('a').strip(), k2: m.group('b').strip()} for m in pat.finditer(text)]
+
 def parse_json_array(text):
     text = strip_fence(text)
-    try: return json.loads(text)
-    except Exception:
-        s = text.find('['); e = text.rfind(']')
-        if s>=0 and e>0:
-            try: return json.loads(text[s:e+1])
-            except Exception: return []
+    cands = [text]
+    s = text.find('['); e = text.rfind(']')
+    if s >= 0 and e > s:
+        cands.append(text[s:e+1])
+    for c in cands:
+        for variant in (c, _repair_inner_quotes(c)):
+            try:
+                v = json.loads(variant)
+                if isinstance(v, list):
+                    return v
+            except Exception:
+                pass
+    for c in cands:
+        got = _salvage_objects(c)
+        if got:
+            print(f'  JSON 解析降级：正则抢救出 {len(got)} 条', flush=True)
+            return got
     return []
 
 def gen_science(today):
@@ -165,10 +208,22 @@ def fetch_aihot_news(limit=60):
     out.sort(key=lambda x: x['ts'], reverse=True)
     return out
 
-def pick_news_material(today, limit=5):
-    """每日 5 条大众新闻，**严格当日**（publishedAt 必须等于 today）；当日不足则少放，不凑旧闻。
-    优先 AI HOT 资讯池（跨领域去重），不足补档案库当日社媒/资讯。"""
-    items = [it for it in fetch_aihot_news(60) if (it.get('ts') or '').startswith(today)]
+def pick_news_material(today, limit=5, exclude_titles=None):
+    """每日 5 条大众新闻。优先严格当日（publishedAt == today）；
+    但本任务在凌晨 04:00 执行，资讯池当日条目通常尚未产生，此时回退到池中
+    **最新可用日期**（上限 3 天内）的一批素材，保证解读板块每日有新内容。
+    已入库的标题会被排除，避免跨日重复。不足则少放，不凑更旧的闻。"""
+    exclude = {(t or '').strip() for t in (exclude_titles or ())}
+    pool = [it for it in fetch_aihot_news(60)
+            if (it.get('title') or '').strip() not in exclude]
+    items = [it for it in pool if (it.get('ts') or '').startswith(today)]
+    if not items and pool:
+        floor = (datetime.strptime(today, '%Y-%m-%d') - timedelta(days=3)).strftime('%Y-%m-%d')
+        dates = sorted({(it.get('ts') or '')[:10] for it in pool
+                        if (it.get('ts') or '')[:10] >= floor}, reverse=True)
+        if dates:
+            items = [it for it in pool if (it.get('ts') or '').startswith(dates[0])]
+            print(f'  当日资讯池为空，回退取 {dates[0]} 的 {len(items)} 条素材', flush=True)
     picked = []; seen = set()
     for it in items:
         d = domain_of(it['title'], it['summary'])
@@ -204,28 +259,73 @@ def pick_news_material(today, limit=5):
             pass
     return picked[:limit]
 
+def parse_json_object(text):
+    t = strip_fence(text)
+    cands = [t]
+    s = t.find('{'); e = t.rfind('}')
+    if s >= 0 and e > s:
+        cands.append(t[s:e+1])
+    for c in cands:
+        for variant in (c, _repair_inner_quotes(c)):
+            try:
+                v = json.loads(variant)
+                if isinstance(v, dict):
+                    return v
+            except Exception:
+                pass
+    m = re.search(r'"interpret"\s*:\s*"([\s\S]+?)"\s*\n?\s*}', t)
+    if m:
+        tm = re.search(r'"title"\s*:\s*"([\s\S]*?)"\s*,\s*"interpret"', t)
+        return {'title': (tm.group(1).strip() if tm else ''), 'interpret': m.group(1).strip()}
+    return {}
+
+def gen_one_news(p):
+    """逐条生成：单条输出短、易解析，一条失败不影响其余（批量数组对 4b 模型过脆）。"""
+    prompt = (
+        "你是面向普通读者的科技新闻编辑。为下面这条 AI 行业/产品新闻写一个吸引人的短标题 + 150-300字通俗解读。"
+        "解读讲清三件事：这件事是什么、有什么影响、对普通人/从业者意味着什么。用简体中文，去术语化。\n"
+        "只返回一个 JSON 对象（不要代码块、不要多余解释），字符串内不要出现英文双引号：\n"
+        '{"title":"一句话新闻标题","interpret":"150-300字通俗解读"}\n'
+        f"新闻标题：{p.get('title', '')}\n新闻简介：{(p.get('summary') or '')[:400]}"
+    )
+    out = ollama([{'role': 'system', 'content': '你擅长把科技新闻讲给普通人听，杜绝生僻术语。'},
+                  {'role': 'user', 'content': prompt}])
+    obj = parse_json_object(out)
+    if not obj.get('interpret'):
+        txt = re.sub(r'^[\s\S]*?"interpret"\s*:\s*"?', '', strip_fence(out)).strip().rstrip('"}').strip()
+        if len(txt) >= 60:
+            obj = {'title': obj.get('title', ''), 'interpret': txt}
+    if not isinstance(obj, dict):
+        return {}
+    # 模型有时直接输出「标题：… / 解读：…」纯文本，清掉标签并回收标题
+    t2, body = _split_plain(obj.get('interpret', '') or '')
+    obj['interpret'] = body
+    if t2 and not (obj.get('title') or '').strip():
+        obj['title'] = t2
+    return obj
+
+def _split_plain(txt):
+    title = ''
+    m = re.search(r'^\s*(?:短?标题)\s*[:：]\s*(.+)$', txt, re.M)
+    if m:
+        title = m.group(1).strip().strip('"“”')
+        txt = (txt[:m.start()] + '\n' + txt[m.end():])
+    txt = re.sub(r'^\s*(?:通俗)?解读\s*[:：]\s*', '', txt.strip(), flags=re.M)
+    return title, txt.strip()
+
 def gen_news(today, material):
     if not material:
         return []
-    items = []
-    for i, p in enumerate(material, 1):
-        items.append(f"{i}. 标题：{p.get('title', '')}\n   简介：{(p.get('summary') or '')[:260]}")
-    prompt = (
-        "你是面向普通读者的科技新闻编辑。对下面每一条 AI 行业/产品新闻，写一个吸引人的短标题 + 150-300字通俗解读，"
-        "解读讲清三件事：这件事是什么、有什么影响、对普通人/从业者意味着什么。用简体中文，去术语化。\n"
-        "返回 JSON 数组（不要代码块、不要多余解释），每个元素：\n"
-        '{"title":"一句话新闻标题","interpret":"150-300字通俗解读"}\n'
-        "严格按输入顺序，每条对应一个元素。\n新闻列表：\n" + "\n".join(items)
-    )
-    msgs = [{'role': 'system', 'content': '你擅长把科技新闻讲给普通人听，杜绝生僻术语。'},
-            {'role': 'user', 'content': prompt}]
-    out = ollama(msgs)
-    arr = parse_json_array(out)
     res = []
     for i, p in enumerate(material):
-        it = arr[i] if i < len(arr) else {}
-        if not isinstance(it, dict):
+        try:
+            it = gen_one_news(p)
+        except Exception as e:
+            print(f'  第 {i+1} 条解读生成失败：{e}', flush=True)
             it = {}
+        if not it.get('interpret'):
+            print(f'  第 {i+1} 条解读为空，已跳过该条', flush=True)
+            continue
         h = 0
         for ch in (p.get('source', '') or ''):
             h = (h * 31 + ord(ch)) & 0xffffffff
@@ -260,25 +360,29 @@ def main():
             continue
         if _d < cut_news:
             del news[_d]
-    if science.get(today):
-        print(f'[{today}] 今日科普已存在，跳过生成。')
+    have_sci = bool(science.get(today))
+    have_news = bool(news.get(today))
+    if have_sci and have_news:
+        print(f'[{today}] 今日科普与解读均已存在，跳过生成。')
         return
     print(f'[{today}] 生成科普站内容（Ollama {MODEL}）...')
     # 预热
     ollama([{'role':'system','content':'warm'},{'role':'user','content':'hi'}])
-    sci = gen_science(today)
-    mat = pick_news_material(today)
-    nws = []
-    try:
-        nws = gen_news(today, mat)
-    except Exception as e:
-        print(f'  解读生成失败（保留已生成的科普）：{e}', flush=True)
+    sci = [] if have_sci else gen_science(today)
+    mat = []; nws = []
+    if not have_news:
+        seen_titles = {it.get('title', '') for day in news.values() for it in day}
+        mat = pick_news_material(today, exclude_titles=seen_titles)
+        try:
+            nws = gen_news(today, mat)
+        except Exception as e:
+            print(f'  解读生成失败（保留已生成的科普）：{e}', flush=True)
     if sci: science[today] = sci
     if nws: news[today] = nws
     store['meta']['last_run'] = datetime.now(SH).isoformat()
     if 'first_run' not in store['meta']: store['meta']['first_run'] = store['meta']['last_run']
     save_store(store)
-    print(f'  科普 {len(sci)} 条，解读 {len(nws)} 条（联动档案库 {len(mat)} 篇论文）')
+    print(f'  科普 {len(sci)} 条，解读 {len(nws)} 条（新闻素材 {len(mat)} 条）')
 
 if __name__ == '__main__':
     main()
