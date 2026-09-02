@@ -106,13 +106,16 @@ def _repair_inner_quotes(s):
         out.append(ch)
     return ''.join(out)
 
-def _salvage_objects(text, keys=('title', 'interpret')):
-    """最后兜底：按「下一个键名/右花括号」为锚点抽取字段，容忍串内脏引号。"""
-    k1, k2 = keys
-    pat = re.compile(
-        r'"%s"\s*:\s*"(?P<a>.*?)"\s*,\s*"%s"\s*:\s*"(?P<b>.*?)"\s*\n?\s*[}\]]' % (k1, k2),
-        re.S)
-    return [{k1: m.group('a').strip(), k2: m.group('b').strip()} for m in pat.finditer(text)]
+def _salvage_objects(text, key_pairs=(('title', 'interpret'), ('title', 'body'))):
+    """最后兜底：按「键名/右花括号」为锚点抽取字段，容忍串内脏引号。
+    同时支持新闻(interpret)与科普(body)两套 schema。"""
+    out = []
+    for k1, k2 in key_pairs:
+        pat = re.compile(
+            r'"%s"\s*:\s*"(?P<a>.*?)"\s*,\s*"%s"\s*:\s*"(?P<b>.*?)"\s*\n?\s*[}\]]' % (k1, k2),
+            re.S)
+        out.extend({k1: m.group('a').strip(), k2: m.group('b').strip()} for m in pat.finditer(text))
+    return out
 
 def parse_json_array(text):
     text = strip_fence(text)
