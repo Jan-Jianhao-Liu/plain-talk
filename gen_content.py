@@ -64,7 +64,11 @@ def save_store(s):
     json.dump(s, open(STORE, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
 
 def ollama(messages):
-    body = json.dumps({'model': MODEL, 'think': False, 'stream': False, 'messages': messages}).encode()
+    # num_ctx 必须显式指定：qwen3.5:4b 原生上下文 262144，若不限制 Ollama 会按满
+    # 上下文分配 KV cache（实测占用 19GB → 67% 溢出到 CPU），推理慢到等同挂死。
+    # 8192 足够容纳本脚本的 prompt + 输出，且可完整驻留 8G 显存。
+    body = json.dumps({'model': MODEL, 'think': False, 'stream': False, 'messages': messages,
+                       'options': {'num_ctx': 8192, 'num_predict': 1024}}).encode()
     req = urllib.request.Request(OLLAMA, data=body, headers={'Content-Type': 'application/json'})
     last = None
     for attempt in range(3):
