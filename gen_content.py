@@ -114,9 +114,12 @@ def _salvage_objects(text, key_pairs=(('title', 'interpret'), ('title', 'body'))
     """最后兜底：按「键名/右花括号」为锚点抽取字段，容忍串内脏引号。
     同时支持新闻(interpret)与科普(body)两套 schema。"""
     out = []
+    # 中间键（如 title 与 body 之间的 level / summary）容忍零到多个，
+    # 避免非贪婪标题误吞中间键导致标题串尾被拼接（如 '...摄像头里","level":"入门'）。
+    mid = r'(?:\s*,\s*"[^"]+"\s*:\s*(?:"[^"]*"|[^,}\]]*))*?'
     for k1, k2 in key_pairs:
         pat = re.compile(
-            r'"%s"\s*:\s*"(?P<a>.*?)"\s*,\s*"%s"\s*:\s*"(?P<b>.*?)"\s*\n?\s*[}\]]' % (k1, k2),
+            r'"%s"\s*:\s*"(?P<a>.*?)"%s\s*,\s*"%s"\s*:\s*"(?P<b>.*?)"\s*\n?\s*[}\]]' % (k1, mid, k2),
             re.S)
         out.extend({k1: m.group('a').strip(), k2: m.group('b').strip()} for m in pat.finditer(text))
     return out
