@@ -145,24 +145,38 @@ def parse_json_array(text):
             return got
     return []
 
+def gen_one_science(topic):
+    """逐条生成（与 gen_one_news 同策略）：单条输出短、易解析，一条失败不影响其余；
+    批量数组对 qwen3.5:4b 过脆，正则兜底会串行吞并成 1 条，故改为单条生成。"""
+    prompt = (
+        "你是面向零基础入门学习者的 AI 科普作者。请生成一个「AI 入门科普」条目，"
+        "用简体中文，只返回一个 JSON 对象（不要代码块、不要多余解释），字符串内不要出现英文双引号：\n"
+        '{"title":"【入门科普】xxx","level":"入门","body":"200-400字，少公式多比喻，用生活化例子讲清概念","diagram":"一句话示意图说明，没有则空字符串"}\n'
+        f"主题：{topic}"
+    )
+    out = ollama([{'role': 'system', 'content': '你擅长用通俗比喻讲解 AI 概念，杜绝生僻术语。'},
+                  {'role': 'user', 'content': prompt}])
+    obj = parse_json_object(out)
+    if not obj.get('body'):
+        txt = re.sub(r'^[\s\S]*?"body"\s*:\s*"?', '', strip_fence(out)).strip().rstrip('"}').strip()
+        if len(txt) >= 80:
+            obj = {'title': obj.get('title', ''), 'body': txt, 'level': '入门', 'diagram': ''}
+    return obj if isinstance(obj, dict) else {}
+
 def gen_science(today):
     topics = pick_science_topics(today)
-    prompt = (
-        "你是面向零基础入门学习者的 AI 科普作者。请严格按顺序生成以下 %d 个「AI 入门科普」条目，"
-        "用简体中文，返回 JSON 数组（不要代码块、不要多余解释），每个元素格式：\n"
-        '{"title":"【入门科普】xxx","level":"入门","body":"200-400字，少公式多比喻，用生活化例子讲清概念","diagram":"一句话示意图说明，没有则空字符串"}\n'
-        "条目主题依次为：\n" + "\n".join(f"{i+1}. {t}" for i, t in enumerate(topics))
-    )
-    msgs = [{'role': 'system', 'content': '你擅长用通俗比喻讲解 AI 概念，杜绝生僻术语。'},
-            {'role': 'user', 'content': prompt}]
-    out = ollama(msgs)
-    arr = parse_json_array(out)
     res = []
-    for i, it in enumerate(arr[:len(topics)]):
-        if not isinstance(it, dict):
+    for i, t in enumerate(topics):
+        try:
+            it = gen_one_science(t)
+        except Exception as e:
+            print(f'  第 {i+1} 条科普生成失败：{e}', flush=True)
+            it = {}
+        if not it.get('body'):
+            print(f'  第 {i+1} 条科普为空，已跳过', flush=True)
             continue
         res.append({'id': f'sci-{today}-{i+1}', 'domain': 'AI Agent',
-                    'title': it.get('title', '') or f'【入门科普】{topics[i][:12]}',
+                    'title': it.get('title', '') or f'【入门科普】{t[:12]}',
                     'level': it.get('level', '入门'), 'body': it.get('body', ''),
                     'diagram': it.get('diagram', ''), 'link': ''})
     return res
